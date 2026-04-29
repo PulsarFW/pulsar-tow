@@ -20,7 +20,7 @@ Tow truck job system allowing players to impound, recover, and deliver vehicles.
 
 ## License
 
-Copyright © 2024 Pulsar Framework. All rights reserved.
+Copyright © 2026 Pulsar Framework. All rights reserved.
 
 <div align="center">
 
