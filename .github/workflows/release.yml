@@ -17,10 +17,9 @@ jobs:
 
       - name: Bundle files
         run: |
-          mkdir -p ./temp/pulsar-tow
-          cp ./{README.md,fxmanifest.lua} ./temp/pulsar-tow
-          cp -r ./{client,server,shared} ./temp/pulsar-tow
-          cd ./temp && zip -r ../pulsar-tow.zip ./pulsar-tow
+          mkdir -p staging/pulsar-tow
+          rsync -a --exclude='.github' --exclude='node_modules' --exclude='staging' . staging/pulsar-tow/
+          cd staging && zip -r ../pulsar-tow.zip pulsar-tow/
 
       - name: Create release
         uses: softprops/action-gh-release@v2
