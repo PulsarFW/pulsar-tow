@@ -1,3 +1,5 @@
+local ServerConfig = load(LoadResourceFile(GetCurrentResourceName(), "config/server.lua"))()
+
 _inuse = {}
 
 CreateThread(function()
@@ -6,42 +8,38 @@ CreateThread(function()
 			if not v.onTask and v.next < os.time() then
 				v.onTask = true
 
-				local cId = math.random(#_spawns)
+				local cId = math.random(#ServerConfig.Spawns)
 				while _inuse[cId] do
-					cId = math.random(#_spawns)
+					cId = math.random(#ServerConfig.Spawns)
 					Wait(1)
 				end
 
 				_inuse[cId] = k
 
-				exports['pulsar-vehicles']:SpawnTemp(
+				plsr.Vehicles:SpawnTemp(
 					-1,
-					exports['pulsar-vehicles']:RandomModelDClass(),
+					plsr.Vehicles.RandomModel:DClass(),
 					'automobile',
-					vector3(_spawns[cId][1], _spawns[cId][2], _spawns[cId][3]),
-					_spawns[cId][4],
+					vector3(ServerConfig.Spawns[cId][1], ServerConfig.Spawns[cId][2], ServerConfig.Spawns[cId][3]),
+					ServerConfig.Spawns[cId][4],
 					function(veh, VIN, plate)
 						SetVehicleDoorsLocked(veh, 2)
-
+		
 						v.location = cId
 						v.veh = veh
-
-						local ent = Entity(veh).state
+		
+						local ent = plsr.State.Entity(veh)
 						ent.towObjective = true
-						TriggerClientEvent("Tow:Client:MarkPickup", k, _spawns[cId], veh)
-
-						exports['pulsar-phone']:NotificationAddWithId(
+						TriggerClientEvent("Tow:Client:MarkPickup", k, ServerConfig.Spawns[cId], veh)
+		
+						plsr.Phone.Notification:AddWithId(
 							k,
 							"TOW_OBJ",
 							"Yard Manager",
 							"Got a pickup for you, check your GPS (flashing gray car)",
 							os.time() * 1000,
 							-1,
-							{
-								color = "#247919",
-								label = "Los Santos Tow",
-								icon = "truck-tow",
-							},
+							ServerConfig.YardBrand,
 							{},
 							nil
 						)
@@ -49,6 +47,6 @@ CreateThread(function()
 				)
 			end
 		end
-		Wait(5000)
+		Wait(ServerConfig.PickupThreadInterval)
 	end
 end)

@@ -1,62 +1,64 @@
+local Config = load(LoadResourceFile(GetCurrentResourceName(), "config/shared.lua"))()
+
 AddEventHandler('Tow:Client:RequestJob', function()
-    exports["pulsar-core"]:ServerCallback('Tow:RequestJob', {}, function(success)
+    plsr.Callbacks:ServerCallback('Tow:RequestJob', {}, function(success)
         if success then
-            exports["pulsar-hud"]:Notification("success", 'You are Now Employed at Tow Yard', 5000, 'truck-tow')
+            plsr.Notification:Success('You are Now Employed at Tow Yard', 5000, 'truck-pickup')
         else
-            exports["pulsar-hud"]:Notification("error", 'Employement Request Failed', 5000, 'truck-tow')
+            plsr.Notification:Error('Employement Request Failed', 5000, 'truck-pickup')
         end
     end)
 end)
 
 AddEventHandler('Tow:Client:QuitJob', function()
-    exports["pulsar-core"]:ServerCallback('Tow:QuitJob', {}, function(success)
+    plsr.Callbacks:ServerCallback('Tow:QuitJob', {}, function(success)
         if not success then
-            exports["pulsar-hud"]:Notification("error", 'Request to Quit Failed', 5000, 'truck-tow')
+            plsr.Notification:Error('Request to Quit Failed', 5000, 'truck-pickup')
         end
     end)
 end)
 
 AddEventHandler('Tow:Client:OnDuty', function()
-    exports["pulsar-core"]:ServerCallback('Tow:OnDuty', {})
+    plsr.Callbacks:ServerCallback('Tow:OnDuty', {})
 end)
 
 AddEventHandler('Tow:Client:OffDuty', function()
-    exports["pulsar-core"]:ServerCallback('Tow:OffDuty', {})
+    plsr.Callbacks:ServerCallback('Tow:OffDuty', {})
 end)
 
 AddEventHandler('Tow:Client:RequestTruck', function()
-    local availableSpace = GetClosestAvailableParkingSpace(LocalPlayer.state.myPos, _towSpaces)
+    local availableSpace = GetClosestAvailableParkingSpace(plsr.State.flags.position, Config.TowSpaces)
     if availableSpace then
-        exports["pulsar-core"]:ServerCallback('Tow:RequestTruck', availableSpace, function(vehNet)
+        plsr.Callbacks:ServerCallback('Tow:RequestTruck', availableSpace, function(vehNet)
             if vehNet ~= nil then
                 SetEntityAsMissionEntity(NetToVeh(vehNet))
             end
         end)
     else
-        exports["pulsar-hud"]:Notification("error", 'Parking Space Occupied, Move Out the Way!', 7500, 'truck-tow')
+        plsr.Notification:Error('Parking Space Occupied, Move Out the Way!', 7500, 'truck-pickup')
     end
 end)
 
 AddEventHandler('Tow:Client:ReturnTruck', function()
-    exports["pulsar-core"]:ServerCallback('Tow:ReturnTruck', {})
+    plsr.Callbacks:ServerCallback('Tow:ReturnTruck', {})
 end)
 
 AddEventHandler('Tow:Client:RequestImpound', function(entityData)
-    local myTowTruck = GlobalState[string.format('TowTrucks:%s', LocalPlayer.state.Character:GetData('SID'))]
+    local myTowTruck = GlobalState[string.format('TowTrucks:%s', plsr.State.character.SID)]
     if myTowTruck then
         myTowTruck = NetToVeh(myTowTruck)
     end
 
-    if entityData and entityData.entity and DoesEntityExist(entityData.entity) and (not myTowTruck or myTowTruck ~= entityData.entity) and #(GetEntityCoords(entityData.entity) - GetEntityCoords(LocalPlayer.state.ped)) <= 10.0 and IsVehicleEmpty(entityData.entity) and exports['pulsar-polyzone']:IsCoordsInZone(GetEntityCoords(entityData.entity), 'tow_impound_zone') then
-        exports['pulsar-hud']:ProgressWithTickEvent({
+    if entityData and entityData.entity and DoesEntityExist(entityData.entity) and (not myTowTruck or myTowTruck ~= entityData.entity) and #(GetEntityCoords(entityData.entity) - GetEntityCoords(PlayerPedId())) <= Config.ImpoundDistance and IsVehicleEmpty(entityData.entity) and plsr.Polyzone:IsCoordsInZone(GetEntityCoords(entityData.entity), Config.ImpoundZone.id) then
+        plsr.Progress:ProgressWithTickEvent({
             name = 'veh_impound',
-            duration = 10 * 1000,
+            duration = Config.ImpoundDuration,
             label = 'Impounding Vehicle',
             useWhileDead = false,
             canCancel = true,
             vehicle = false,
             disarm = false,
-            ignoreModifier = true,
+			ignoreModifier = true,
             controlDisables = {
                 disableMovement = true,
                 disableCarMovement = true,
@@ -67,26 +69,26 @@ AddEventHandler('Tow:Client:RequestImpound', function(entityData)
                 anim = 'clipboard',
             },
         }, function()
-            if not DoesEntityExist(entityData.entity) or (#(GetEntityCoords(entityData.entity) - GetEntityCoords(LocalPlayer.state.ped)) > 10.0) or not IsVehicleEmpty(entityData.entity) then
-                exports['pulsar-hud']:ProgressCancel()
+            if not DoesEntityExist(entityData.entity) or (#(GetEntityCoords(entityData.entity) - GetEntityCoords(PlayerPedId())) > 10.0) or not IsVehicleEmpty(entityData.entity) then
+                plsr.Progress:Cancel()
             end
         end, function(cancelled)
-            if not cancelled and DoesEntityExist(entityData.entity) and (#(GetEntityCoords(entityData.entity) - GetEntityCoords(LocalPlayer.state.ped)) <= 10.0) and IsVehicleEmpty(entityData.entity) then
-                exports["pulsar-core"]:ServerCallback('Vehicles:Impound', {
+            if not cancelled and DoesEntityExist(entityData.entity) and (#(GetEntityCoords(entityData.entity) - GetEntityCoords(PlayerPedId())) <= 10.0) and IsVehicleEmpty(entityData.entity) then
+                plsr.Callbacks:ServerCallback('Vehicles:Impound', {
                     vNet = VehToNet(entityData.entity),
                     type = 'impound',
                 }, function(success)
                     if success then
-                        exports["pulsar-hud"]:Notification("success", 'Vehicle Impounded Successfully')
+                        plsr.Notification:Success('Vehicle Impounded Successfully')
                     else
-                        exports["pulsar-hud"]:Notification("error", 'Impound Failed Miserably')
+                        plsr.Notification:Error('Impound Failed Miserably')
                     end
                 end)
             else
-                exports["pulsar-hud"]:Notification("error", 'Impound Failed')
+                plsr.Notification:Error('Impound Failed')
             end
         end)
     else
-        exports["pulsar-hud"]:Notification("error", 'Cannot Impound That Vehicle')
+        plsr.Notification:Error('Cannot Impound That Vehicle')
     end
 end)

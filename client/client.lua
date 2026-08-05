@@ -1,66 +1,69 @@
-AddEventHandler('onClientResourceStart', function(resource)
-	if resource == GetCurrentResourceName() then
-		Wait(1000)
-		exports['pulsar-pedinteraction']:Add("veh_tow_jerry", `a_m_m_eastsa_01`, vector3(-247.645, -1183.099, 22.090),
-			312.942, 50.0, {
-				{
-					icon = "truck-tow",
-					text = "Request Tow Truck",
-					event = "Tow:Client:RequestTruck",
-					jobPerms = {
-						{
-							job = "tow",
-							reqDuty = true,
-						},
-					},
-					isEnabled = function()
-						return not GlobalState
-							[string.format("TowTrucks:%s", LocalPlayer.state.Character:GetData("SID"))]
-					end,
-				},
-				{
-					icon = "truck-tow",
-					text = "Return Tow Truck",
-					event = "Tow:Client:ReturnTruck",
-					jobPerms = {
-						{
-							job = "tow",
-							reqDuty = true,
-						},
-					},
-					isEnabled = function()
-						return GlobalState[string.format("TowTrucks:%s", LocalPlayer.state.Character:GetData("SID"))]
-					end,
-				},
-			}, "truck-tow", "WORLD_HUMAN_HANG_OUT_STREET")
+local Config = load(LoadResourceFile(GetCurrentResourceName(), "config/shared.lua"))()
 
-		exports['pulsar-polyzone']:CreateBox("tow_impound_zone", vector3(-236.96, -1173.44, 23.04), 19.4, 24.4, {
-			heading = 270,
-			minZ = 22.04,
-			maxZ = 26.04,
+CreateThread(function()
+		plsr.PedInteraction:Add("veh_tow_jerry", Config.Yard.model, Config.Yard.coords, Config.Yard.heading, 50.0, {
+			{
+				icon = "truck-pickup",
+				text = "Request Tow Truck",
+				event = "Tow:Client:RequestTruck",
+				jobPerms = {
+					{
+						job = "tow",
+						reqDuty = true,
+					},
+				},
+				isEnabled = function()
+					return not GlobalState[string.format("TowTrucks:%s", plsr.State.character.SID)]
+				end,
+			},
+			{
+				icon = "truck-pickup",
+				text = "Return Tow Truck",
+				event = "Tow:Client:ReturnTruck",
+				jobPerms = {
+					{
+						job = "tow",
+						reqDuty = true,
+					},
+				},
+				isEnabled = function()
+					return GlobalState[string.format("TowTrucks:%s", plsr.State.character.SID)]
+				end,
+			},
+		}, "truck-pickup", Config.Yard.scenario)
+
+		plsr.Polyzone.Create:Box(Config.ImpoundZone.id, Config.ImpoundZone.coords, Config.ImpoundZone.width, Config.ImpoundZone.length, {
+			heading = Config.ImpoundZone.heading,
+			minZ = Config.ImpoundZone.minZ,
+			maxZ = Config.ImpoundZone.maxZ,
 		})
-	end
 end)
 
-exports('IsTowTruck', function(entity)
-	local model = GetEntityModel(entity)
-	return _towTrucks[model]
+_TOW = {
+	IsTowTruck = function(self, entity)
+		local model = GetEntityModel(entity)
+		return Config.TowTrucks[model]
+	end,
+}
+
+AddEventHandler("Proxy:Shared:RegisterReady", function()
+	exports["pulsar_core"]:RegisterComponent("Tow", _TOW)
 end)
 
 local _towingAction = false
 
 AddEventHandler("Vehicles:Client:BeginTow", function(entityData)
 	local truck = entityData.entity
-	local truckState = Entity(truck).state
+	local truckState = plsr.State.Entity(truck)
 	local truckModel = GetEntityModel(truck)
-	if not _towingAction and _towTrucks[truckModel] and truckState and not truckState.towingVehicle then
-		local targetVehicle = GetVehicleBehindTowTruck(truck, 8.0)
-		local canTow, errorMessage = CanTowVehicle(truck, targetVehicle)
+	if not _towingAction and Config.TowTrucks[truckModel] and truckState and not truckState.towingVehicle then
+		local targetVehicle = GetVehicleBehindTowTruck(truck, Config.AttachSearchDistance)
+		local canTow, errorMessage = CanFuckingTowVehicle(truck, targetVehicle)
 		if canTow then
-			exports["pulsar-sounds"]:PlayDistance(5.0, "tow_truck.ogg", 0.2)
-			exports['pulsar-hud']:ProgressWithStartAndTick({
+			plsr.Sounds.Play:Distance(5.0, Config.AttachAction.sound, 0.2)
+			plsr.Progress:ProgressWithStartAndTick({
 				name = "tow_attaching",
-				duration = 1 * 1000,
+				duration = Config.AttachAction.duration,
 				label = "Starting Tow",
 				canCancel = true,
 				tickrate = 1000,
@@ -72,74 +75,70 @@ AddEventHandler("Vehicles:Client:BeginTow", function(entityData)
 					disableCombat = true,
 				},
 				animation = {
-					animDict = "anim@amb@clubhouse@tutorial@bkr_tut_ig3@",
-					anim = "machinic_loop_mechandplayer",
-					flags = 49,
+					animDict = Config.AttachAction.animDict,
+					anim = Config.AttachAction.anim,
+					flags = Config.AttachAction.flags,
 				},
 			}, function()
 				_towingAction = true
 			end, function()
-				local canTow, errorMessage = CanTowVehicle(truck, targetVehicle)
+				local canTow, errorMessage = CanFuckingTowVehicle(truck, targetVehicle)
 				if not canTow then
-					exports['pulsar-hud']:ProgressCancel()
-					exports["pulsar-hud"]:Notification("error", errorMessage, 5000, "truck-tow")
+					plsr.Progress:Cancel()
+					plsr.Notification:Error(errorMessage, 5000, "truck-pickup")
 				end
 			end, function(wasCancelled)
 				_towingAction = false
 				if not wasCancelled then
 					local success = AttachVehicleToTow(truck, targetVehicle, truckModel)
 					if success then
-						truckState:set("towingVehicle", VehToNet(success), true)
-						exports["pulsar-hud"]:Notification("success", "Vehicle Now on Tow Truck", 5000, "truck-tow")
+						truckState.towingVehicle = VehToNet(success)
+						plsr.Notification:Success("Vehicle Now on Tow Truck", 5000, "truck-pickup")
 
-						if Entity(success).state.towObjective then
-							exports["pulsar-blips"]:Remove("towjob-pickup")
-							exports['pulsar-phone']:NotificationUpdate("TOW_OBJ", "Yard Manager",
-								"Great, bring it back to the yard")
+						if plsr.State.Entity(success).towObjective then
+							plsr.Blips:Remove("towjob-pickup")
+							plsr.Phone.Notification:Update("TOW_OBJ", "Yard Manager", "Great, bring it back to the yard")
 						end
 					else
-						truckState:set("towingVehicle", false, true)
-						exports["pulsar-hud"]:Notification("error", "Failed to Tow Vehicle", 5000, "truck-tow")
+						truckState.towingVehicle = false
+						plsr.Notification:Error("Failed to Tow Vehicle", 5000, "truck-pickup")
 					end
 				end
 			end)
 		else
-			exports["pulsar-hud"]:Notification("error", errorMessage, 5000, "truck-tow")
+			plsr.Notification:Error(errorMessage, 5000, "truck-pickup")
 		end
 	end
 end)
 
 AddEventHandler("Vehicles:Client:ReleaseTow", function(entityData)
 	local truck = entityData.entity
-	local truckState = Entity(truck).state
+	local truckState = plsr.State.Entity(truck)
 	local truckModel = GetEntityModel(truck)
-	if _towTrucks[truckModel] and truckState then
+	if Config.TowTrucks[truckModel] and truckState then
 		if truckState.towingVehicle then
 			local success = DetachVehicleFromTow(truck, NetToVeh(truckState.towingVehicle))
 			if success then
-				exports["pulsar-hud"]:Notification("success", "Vehicle Released from Truck", 5000, "truck-tow")
-				truckState:set("towingVehicle", false, true)
+				plsr.Notification:Success("Vehicle Released from Truck", 5000, "truck-pickup")
+				truckState.towingVehicle = false
 			end
 		else
-			exports["pulsar-hud"]:Notification("error", "No Vehicle Being Towed", 5000, "truck-tow")
+			plsr.Notification:Error("No Vehicle Being Towed", 5000, "truck-pickup")
 		end
 	end
 end)
 
 RegisterNetEvent("Tow:Client:MarkPickup", function(coords, vehNet)
-	exports["pulsar-blips"]:Add("towjob-pickup", "Vehicle Pickup", coords, 326, 65, 0.8, 2, false, true)
+	plsr.Blips:Add("towjob-pickup", "Vehicle Pickup", coords, 326, 65, 0.8, 2, false, true)
 	SetEntityAsMissionEntity(NetToVeh(vehNet))
 end)
 
 RegisterNetEvent("Tow:Client:CleanupPickup", function()
-	exports["pulsar-blips"]:Remove("towjob-pickup")
+	plsr.Blips:Remove("towjob-pickup")
 end)
 
 function AttachVehicleToTow(towTruck, targetVeh, truckModel)
-	local boneIndex = "bodyshell"
-	if truckModel == `trailersmall` then
-		boneIndex = "chassis"
-	end
+	local boneIndex = (Config.TowTrucks[truckModel] and Config.TowTrucks[truckModel].boneIndex) or "bodyshell"
 
 	local attachOffset = GetVehicleAttachOffset(GetEntityModel(towTruck), targetVeh)
 
@@ -183,7 +182,7 @@ function DetachVehicleFromTow(towTruck, towedVehicle)
 			Wait(50)
 			SetVehicleOnGroundProperly(towedVehicle)
 
-			if Entity(towedVehicle).state.towObjective then
+			if plsr.State.Entity(towedVehicle).towObjective then
 				SetVehicleDoorsLockedForAllPlayers(veh, true)
 			end
 
