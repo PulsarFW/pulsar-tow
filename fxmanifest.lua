@@ -14,6 +14,10 @@ client_script '@pulsar_core/components/cl_error.lua'
 shared_script '@pulsar_core/core/sh_pulsar.lua'
 client_script '@pulsar_pwnzor/client/check.lua'
 
+files({
+	'config/shared.lua',
+})
+
 client_scripts({
 	'client/**/*.lua',
 })
